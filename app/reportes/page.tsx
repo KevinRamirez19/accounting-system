@@ -10,60 +10,144 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FileText, TrendingUp, Calendar, Download } from "lucide-react"
-import type { BalanceGeneral, EstadoResultados } from "@/lib/types"
+import type { BalanceGeneral, EstadoResultados, AsientoContable, PartidaContable } from "@/lib/types"
+import axios from "axios"
 
 export default function ReportesPage() {
   const [loading, setLoading] = useState(true)
+  const [reportLoading, setReportLoading] = useState(false)
   const [dateRange, setDateRange] = useState({
     inicio: new Date(new Date().getFullYear(), 0, 1).toISOString().split("T")[0],
     fin: new Date().toISOString().split("T")[0],
   })
-
+  const [asientos, setAsientos] = useState<AsientoContable[]>([])
   const [balanceGeneral, setBalanceGeneral] = useState<BalanceGeneral>({
-    activos: [
-      { cuenta: "Caja", monto: 50000 },
-      { cuenta: "Bancos", monto: 150000 },
-      { cuenta: "Cuentas por Cobrar", monto: 80000 },
-      { cuenta: "Inventario", monto: 120000 },
-    ],
-    pasivos: [
-      { cuenta: "Proveedores", monto: 30000 },
-      { cuenta: "Cuentas por Pagar", monto: 45000 },
-      { cuenta: "Préstamos Bancarios", monto: 100000 },
-    ],
-    capital: [
-      { cuenta: "Capital Social", monto: 200000 },
-      { cuenta: "Utilidades Retenidas", monto: 25000 },
-    ],
-    total_activos: 400000,
-    total_pasivos: 175000,
-    total_capital: 225000,
+    activos: [],
+    pasivos: [],
+    capital: [],
+    total_activos: 0,
+    total_pasivos: 0,
+    total_capital: 0,
   })
-
   const [estadoResultados, setEstadoResultados] = useState<EstadoResultados>({
-    ingresos: [
-      { cuenta: "Ventas", monto: 500000 },
-      { cuenta: "Servicios", monto: 150000 },
-      { cuenta: "Otros Ingresos", monto: 25000 },
-    ],
-    egresos: [
-      { cuenta: "Costo de Ventas", monto: 300000 },
-      { cuenta: "Gastos Operativos", monto: 120000 },
-      { cuenta: "Gastos Administrativos", monto: 80000 },
-      { cuenta: "Gastos Financieros", monto: 15000 },
-    ],
-    total_ingresos: 675000,
-    total_egresos: 515000,
-    utilidad_neta: 160000,
+    ingresos: [],
+    egresos: [],
+    total_ingresos: 0,
+    total_egresos: 0,
+    utilidad_neta: 0,
   })
 
-  useEffect(() => {
-    setLoading(false)
-  }, [])
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
+  const api = axios.create({
+    baseURL: "http://localhost:8000/api",
+    headers: { Authorization: token ? `Bearer ${token}` : "" },
+  })
 
+  // 🔹 Cargar asientos con partidas y cuentas
+  useEffect(() => {
+    if (!token) {
+      alert("No se encontró token. Debes iniciar sesión.")
+      setLoading(false)
+      return
+    }
+
+    const fetchAsientos = async () => {
+      try {
+        const res = await api.get("/asientos?withPartidas=true")
+        setAsientos(res.data.data || [])
+      } catch (err) {
+        console.error("Error al cargar asientos:", err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchAsientos()
+  }, [token])
+
+  // 🔹 Generar los reportes incluyendo contrapartida
   const handleGenerateReport = () => {
-    console.log("Generando reporte para:", dateRange)
-    // Fetch data from API based on date range
+    setReportLoading(true)
+    const start = dateRange.inicio
+    const end = dateRange.fin
+
+    const filteredAsientos = asientos.filter((a) => {
+      const fecha = new Date(a.fecha).toISOString().split("T")[0]
+      return fecha >= start && fecha <= end
+    })
+
+    const bg: BalanceGeneral = { activos: [], pasivos: [], capital: [], total_activos: 0, total_pasivos: 0, total_capital: 0 }
+    const er: EstadoResultados = { ingresos: [], egresos: [], total_ingresos: 0, total_egresos: 0, utilidad_neta: 0 }
+
+    filteredAsientos.forEach((asiento) => {
+      asiento.partidas?.forEach((p: PartidaContable) => {
+        if (!p?.cuenta?.tipo) return
+        const tipo = p.cuenta.tipo.trim().toUpperCase()
+        const debe = parseFloat(String(p.debe ?? "0"))
+        const haber = parseFloat(String(p.haber ?? "0"))
+        const contrapartida = p.contrapartida ?? asiento.descripcion ?? "—"
+        let monto = 0
+
+        switch (tipo) {
+          case "ACTIVO":
+            monto = debe - haber
+            bg.activos.push({ cuenta: p.cuenta.nombre, monto, contrapartida })
+            bg.total_activos += monto
+            break
+          case "PASIVO":
+            monto = haber - debe
+            bg.pasivos.push({ cuenta: p.cuenta.nombre, monto, contrapartida })
+            bg.total_pasivos += monto
+            break
+          case "PATRIMONIO":
+          case "CAPITAL":
+            monto = haber - debe
+            bg.capital.push({ cuenta: p.cuenta.nombre, monto, contrapartida })
+            bg.total_capital += monto
+            break
+          case "INGRESO":
+            monto = haber - debe
+            er.ingresos.push({ cuenta: p.cuenta.nombre, monto, contrapartida })
+            er.total_ingresos += monto
+            break
+          case "EGRESO":
+          case "GASTO":
+            monto = debe - haber
+            er.egresos.push({ cuenta: p.cuenta.nombre, monto, contrapartida })
+            er.total_egresos += monto
+            break
+          default:
+            console.warn("Tipo de cuenta desconocido:", tipo)
+        }
+      })
+    })
+
+    er.utilidad_neta = er.total_ingresos - er.total_egresos
+
+    setBalanceGeneral(bg)
+    setEstadoResultados(er)
+    setReportLoading(false)
+  }
+
+  // 🔹 Descargar PDF o Excel
+  const descargarLibroDiario = async (tipo: "pdf" | "excel") => {
+    try {
+      const response = await api.get(`/reportes/libro-diario/${tipo}`, {
+        params: { fecha_inicio: dateRange.inicio, fecha_fin: dateRange.fin },
+        responseType: "blob",
+      })
+
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement("a")
+      link.href = url
+      link.setAttribute("download", `libro_diario.${tipo === "pdf" ? "pdf" : "xlsx"}`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+    } catch (err) {
+      console.error("Error al descargar archivo:", err)
+      alert("No se pudo descargar el archivo. Verifica la ruta o el token.")
+    }
   }
 
   if (loading) {
@@ -81,24 +165,24 @@ export default function ReportesPage() {
       <div className="p-8 space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-white">Reportes Contables</h1>
-          <p className="text-gray-400 mt-2">Genera y exporta reportes financieros</p>
+          <p className="text-gray-400 mt-2">Genera y exporta reportes financieros con contrapartidas</p>
         </div>
 
-        {/* Date Range Filter */}
+        {/* 🔹 Filtro de fechas */}
         <Card className="bg-zinc-900 border-zinc-800">
           <CardHeader>
             <CardTitle className="text-white flex items-center gap-2">
               <Calendar className="w-5 h-5" />
               Filtrar por Período
             </CardTitle>
-            <CardDescription className="text-gray-400">Selecciona el rango de fechas para los reportes</CardDescription>
+            <CardDescription className="text-gray-400">
+              Selecciona el rango de fechas para los reportes
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex gap-4 items-end">
+            <div className="flex gap-4 items-end flex-wrap">
               <div className="flex-1 space-y-2">
-                <Label htmlFor="fecha-inicio" className="text-gray-300">
-                  Fecha Inicio
-                </Label>
+                <Label htmlFor="fecha-inicio" className="text-gray-300">Fecha Inicio</Label>
                 <Input
                   id="fecha-inicio"
                   type="date"
@@ -108,9 +192,7 @@ export default function ReportesPage() {
                 />
               </div>
               <div className="flex-1 space-y-2">
-                <Label htmlFor="fecha-fin" className="text-gray-300">
-                  Fecha Fin
-                </Label>
+                <Label htmlFor="fecha-fin" className="text-gray-300">Fecha Fin</Label>
                 <Input
                   id="fecha-fin"
                   type="date"
@@ -119,14 +201,33 @@ export default function ReportesPage() {
                   className="bg-zinc-800 border-zinc-700 text-white"
                 />
               </div>
-              <Button onClick={handleGenerateReport} className="bg-blue-600 hover:bg-blue-700 text-white">
-                Generar Reportes
+
+              <Button
+                onClick={handleGenerateReport}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                disabled={reportLoading}
+              >
+                {reportLoading ? "Generando..." : "Generar Reportes"}
+              </Button>
+
+              <Button
+                onClick={() => descargarLibroDiario("pdf")}
+                className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
+              >
+                <Download className="w-4 h-4" /> Descargar PDF
+              </Button>
+
+              <Button
+                onClick={() => descargarLibroDiario("excel")}
+                className="bg-yellow-600 hover:bg-yellow-700 text-white flex items-center gap-2"
+              >
+                <Download className="w-4 h-4" /> Descargar Excel
               </Button>
             </div>
           </CardContent>
         </Card>
 
-        {/* Reports Tabs */}
+        {/* 🔹 Tabs de Reportes */}
         <Tabs defaultValue="balance" className="space-y-6">
           <TabsList className="bg-zinc-900 border border-zinc-800">
             <TabsTrigger value="balance" className="data-[state=active]:bg-zinc-800">
@@ -147,26 +248,6 @@ export default function ReportesPage() {
             <EstadoResultadosReport data={estadoResultados} />
           </TabsContent>
         </Tabs>
-
-        {/* Quick Export Options */}
-        <Card className="bg-zinc-900 border-zinc-800">
-          <CardHeader>
-            <CardTitle className="text-white">Exportación Rápida</CardTitle>
-            <CardDescription className="text-gray-400">Descarga todos los reportes en un solo archivo</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-3">
-              <Button variant="outline" className="flex-1 bg-zinc-800 border-zinc-700 text-white hover:bg-zinc-700">
-                <FileText className="w-4 h-4 mr-2" />
-                Exportar Todo a PDF
-              </Button>
-              <Button variant="outline" className="flex-1 bg-zinc-800 border-zinc-700 text-white hover:bg-zinc-700">
-                <Download className="w-4 h-4 mr-2" />
-                Exportar Todo a Excel
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </DashboardLayout>
   )

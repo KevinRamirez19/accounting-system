@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Plus, Edit, Trash2 } from "lucide-react"
 import { vehiculosService } from "@/lib/vehiculos-service"
 import type { Vehiculo } from "@/lib/types"
-import { VehiculoForm } from "@/app/vehiculos/vehiculo-form" // ✅ import corregido
+import { VehiculoForm, VehiculoData } from "./vehiculo-form"
 
 export default function VehiculosPage() {
   const [vehiculos, setVehiculos] = useState<Vehiculo[]>([])
@@ -15,7 +15,7 @@ export default function VehiculosPage() {
   const [selectedVehiculo, setSelectedVehiculo] = useState<Vehiculo | null>(null)
   const [showForm, setShowForm] = useState(false)
 
-  // 🧭 Obtener todos los vehículos
+  // 🔄 Obtener todos los vehículos
   const fetchVehiculos = async () => {
     try {
       const data = await vehiculosService.getAll()
@@ -56,10 +56,29 @@ export default function VehiculosPage() {
     setShowForm(true)
   }
 
-  // 🔄 Actualizar lista después de guardar
-  const handleFormSubmit = async () => {
-    setShowForm(false)
-    await fetchVehiculos()
+  // 💾 Guardar vehículo (crear o actualizar)
+  const handleFormSubmit = async (data: VehiculoData) => {
+    try {
+      const payload = {
+        ...data,
+        proveedor_id: Number(data.proveedor_id),
+        año: Number(data.año),
+        precio_compra: Number(data.precio_compra),
+        precio_venta: Number(data.precio_venta),
+        stock: Number(data.stock),
+      }
+
+      if (data.id) {
+        await vehiculosService.update(data.id, payload)
+      } else {
+        await vehiculosService.create(payload)
+      }
+      await fetchVehiculos()
+    } catch (error) {
+      console.error("Error al guardar vehículo:", error)
+    } finally {
+      setShowForm(false)
+    }
   }
 
   const columns = [
@@ -120,10 +139,10 @@ export default function VehiculosPage() {
 
   return (
     <DashboardLayout>
-      <div className="p-8 space-y-6">
+      <div className="p-8 space-y-6 bg-[#0B0F19] min-h-screen text-white">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-white">Vehículos</h1>
+            <h1 className="text-3xl font-bold">Vehículos</h1>
             <p className="text-gray-400 mt-2">Gestiona tu inventario de vehículos</p>
           </div>
           <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={handleNew}>
@@ -137,8 +156,26 @@ export default function VehiculosPage() {
         {/* 🧾 Formulario modal (crear / editar) */}
         {showForm && (
           <VehiculoForm
-            vehiculo={selectedVehiculo}
+            open={showForm}
             onClose={() => setShowForm(false)}
+            initialData={
+              selectedVehiculo
+                ? {
+                    id: selectedVehiculo.id,
+                    proveedor_id: selectedVehiculo.proveedor_id.toString(),
+                    marca: selectedVehiculo.marca,
+                    modelo: selectedVehiculo.modelo,
+                    año: selectedVehiculo.año.toString(),
+                    color: selectedVehiculo.color,
+                    placa: selectedVehiculo.placa,
+                    vin: selectedVehiculo.vin,
+                    precio_compra: selectedVehiculo.precio_compra.toString(),
+                    precio_venta: selectedVehiculo.precio_venta.toString(),
+                    estado: selectedVehiculo.estado,
+                    stock: selectedVehiculo.stock.toString(),
+                  }
+                : undefined
+            }
             onSubmit={handleFormSubmit}
           />
         )}

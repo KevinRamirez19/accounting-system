@@ -100,14 +100,18 @@ export interface CompraDetalle {
   subtotal: number
 }
 
-export interface Compra {
+export type Compra = {
   id: number
-  proveedor_id: number
-  proveedor?: Proveedor
-  fecha: string
-  total: number
-  detalles: CompraDetalle[]
-  created_at?: string
+  numero_factura?: string
+  proveedor?: {
+    id: number
+    nombre?: string
+  }
+  fecha_compra?: string
+  subtotal?: number
+  iva?: number
+  total?: number
+  vehiculos?: VehiculoCompra[]
 }
 
 export interface VentaDetalle {
@@ -149,37 +153,34 @@ export interface PartidaContable {
   id?: number
   cuenta_id: number
   cuenta?: Cuenta
-  tipo: "debe" | "haber"
+  tipo: "activo" | "pasivo" | "capital" | "ingreso" | "egreso"
   monto: number
+  debe?: number
+  haber?: number
+  contrapartida?: string
 }
 
 export interface BalanceGeneral {
-  activos: {
-    cuenta: string
-    monto: number
-  }[]
-  pasivos: {
-    cuenta: string
-    monto: number
-  }[]
-  capital: {
-    cuenta: string
-    monto: number
-  }[]
+  activos: { cuenta: string; monto: number; contrapartida?: string }[]
+  pasivos: { cuenta: string; monto: number; contrapartida?: string }[]
+  capital: { cuenta: string; monto: number; contrapartida?: string }[]
   total_activos: number
   total_pasivos: number
   total_capital: number
 }
+export type VehiculoCompra = {
+  vehiculo?: {
+    id: number
+    marca?: string
+    modelo?: string
+  }
+  cantidad?: number
+  precio_unitario?: number
+}
 
 export interface EstadoResultados {
-  ingresos: {
-    cuenta: string
-    monto: number
-  }[]
-  egresos: {
-    cuenta: string
-    monto: number
-  }[]
+  ingresos: { cuenta: string; monto: number; contrapartida?: string }[]
+  egresos: { cuenta: string; monto: number; contrapartida?: string }[]
   total_ingresos: number
   total_egresos: number
   utilidad_neta: number

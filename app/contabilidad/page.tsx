@@ -3,12 +3,13 @@
 import { useState, useEffect } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { DataTable } from "@/components/ui/data-table"
-import { CuentaForm } from "@/components/contabilidad/cuenta-form"
-import { AsientoForm } from "@/components/contabilidad/asiento-form"
+import { CuentaForm } from "@/app/contabilidad/CuentaForm"
+import { AsientoForm } from "@/app/contabilidad/AsientoForm"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Plus, BookOpen, FileText } from "lucide-react"
-import type { Cuenta, AsientoContable } from "@/lib/types"
+import type { Cuenta, AsientoContable, PartidaContable } from "@/lib/types"
+import axios from "axios"
 
 export default function ContabilidadPage() {
   const [cuentas, setCuentas] = useState<Cuenta[]>([])
@@ -17,42 +18,80 @@ export default function ContabilidadPage() {
   const [cuentaFormOpen, setCuentaFormOpen] = useState(false)
   const [showAsientoForm, setShowAsientoForm] = useState(false)
 
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
+
+  const api = axios.create({
+    baseURL: "http://localhost:8000/api",
+    headers: { Authorization: token ? `Bearer ${token}` : "" },
+  })
+
   useEffect(() => {
-    // Mock data
-    const mockCuentas: Cuenta[] = [
-      { id: 1, codigo: "1001", nombre: "Caja", tipo: "activo", saldo: 50000 },
-      { id: 2, codigo: "1002", nombre: "Bancos", tipo: "activo", saldo: 150000 },
-      { id: 3, codigo: "2001", nombre: "Proveedores", tipo: "pasivo", saldo: 30000 },
-      { id: 4, codigo: "4001", nombre: "Ventas", tipo: "ingreso", saldo: 200000 },
-      { id: 5, codigo: "5001", nombre: "Gastos Operativos", tipo: "egreso", saldo: 45000 },
-    ]
+    const fetchData = async () => {
+      if (!token) {
+        alert("No se encontró token. Debes iniciar sesión.")
+        setLoading(false)
+        return
+      }
 
-    const mockAsientos: AsientoContable[] = [
-      {
-        id: 1,
-        fecha: "2025-01-15",
-        descripcion: "Venta de mercancía",
-        total: 10000,
-        partidas: [
-          { cuenta_id: 1, tipo: "debe", monto: 10000 },
-          { cuenta_id: 4, tipo: "haber", monto: 10000 },
-        ],
-      },
-    ]
+      try {
+        const [cuentasRes, asientosRes] = await Promise.all([
+          api.get("/cuentas"),
+          api.get("/asientos"),
+        ])
+        setCuentas(cuentasRes.data.data || [])
+        setAsientos(asientosRes.data.data || [])
+      } catch (err: any) {
+        console.error("Error al cargar datos:", err)
+        alert("Error al cargar datos, revisa la consola")
+      } finally {
+        setLoading(false)
+      }
+    }
 
-    setCuentas(mockCuentas)
-    setAsientos(mockAsientos)
-    setLoading(false)
-  }, [])
+    fetchData()
+  }, [token])
 
   const handleCreateCuenta = async (data: any) => {
-    console.log("Nueva cuenta:", data)
-    setCuentaFormOpen(false)
+    if (!token) return alert("No autorizado. Debes iniciar sesión.")
+
+    try {
+      await api.post("/cuentas", data)
+      const res = await api.get("/cuentas")
+      setCuentas(res.data.data || [])
+      setCuentaFormOpen(false)
+    } catch (err: any) {
+      console.error("Error al crear cuenta:", err)
+      alert("Error al crear cuenta")
+    }
   }
 
   const handleCreateAsiento = async (data: any) => {
-    console.log("Nuevo asiento:", data)
-    setShowAsientoForm(false)
+    if (!token) return alert("No autorizado. Debes iniciar sesión.")
+
+    try {
+      const payload = {
+        codigo: data.codigo,
+        descripcion: data.descripcion,
+        fecha: data.fecha.split("T")[0], // Guardamos solo la fecha sin hora
+        compra_id: data.compra_id || null,
+        venta_id: data.venta_id || null,
+        partidas: data.partidas.map((p: any) => ({
+          cuenta_id: p.cuenta_id,
+          debe: Number(p.debe) || 0,
+          haber: Number(p.haber) || 0,
+          descripcion: p.descripcion || null,
+        })),
+      }
+
+      await api.post("/asientos", payload)
+
+      const res = await api.get("/asientos")
+      setAsientos(res.data.data || [])
+      setShowAsientoForm(false)
+    } catch (err: any) {
+      console.error("Error al crear asiento:", err)
+      alert("Error al crear asiento contable. Revisa la consola.")
+    }
   }
 
   const cuentasColumns = [
@@ -63,21 +102,42 @@ export default function ContabilidadPage() {
       label: "Tipo",
       render: (cuenta: Cuenta) => <span className="capitalize">{cuenta.tipo}</span>,
     },
-    {
-      key: "saldo",
-      label: "Saldo",
-      render: (cuenta: Cuenta) => `$${cuenta.saldo.toLocaleString()}`,
-    },
   ]
 
   const asientosColumns = [
     { key: "id", label: "ID" },
-    { key: "fecha", label: "Fecha" },
+    {
+      key: "fecha",
+      label: "Fecha",
+      render: (asiento: AsientoContable) => {
+        if (!asiento.fecha) return ""
+        return asiento.fecha.split("T")[0] // Solo YYYY-MM-DD
+      },
+    },
     { key: "descripcion", label: "Descripción" },
     {
       key: "total",
-      label: "Total",
-      render: (asiento: AsientoContable) => `$${asiento.total.toLocaleString()}`,
+      label: "Total Debe",
+      render: (asiento: AsientoContable) => {
+        const totalDebe = asiento.partidas?.reduce(
+          (sum: number, p: PartidaContable) => sum + (Number(p.debe) || 0),
+          0
+        ) || 0
+
+        return `$${totalDebe.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      },
+    },
+    {
+      key: "totalHaber",
+      label: "Total Haber",
+      render: (asiento: AsientoContable) => {
+        const totalHaber = asiento.partidas?.reduce(
+          (sum: number, p: PartidaContable) => sum + (Number(p.haber) || 0),
+          0
+        ) || 0
+
+        return `$${totalHaber.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      },
     },
   ]
 
@@ -114,7 +174,10 @@ export default function ContabilidadPage() {
 
             <TabsContent value="cuentas" className="space-y-4">
               <div className="flex justify-end">
-                <Button onClick={() => setCuentaFormOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
+                <Button
+                  onClick={() => setCuentaFormOpen(true)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
                   <Plus className="w-4 h-4 mr-2" />
                   Nueva Cuenta
                 </Button>
@@ -124,7 +187,10 @@ export default function ContabilidadPage() {
 
             <TabsContent value="asientos" className="space-y-4">
               <div className="flex justify-end">
-                <Button onClick={() => setShowAsientoForm(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
+                <Button
+                  onClick={() => setShowAsientoForm(true)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
                   <Plus className="w-4 h-4 mr-2" />
                   Nuevo Asiento
                 </Button>

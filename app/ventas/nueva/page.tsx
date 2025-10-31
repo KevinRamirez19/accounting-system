@@ -12,49 +12,128 @@ interface Cliente {
   nombre: string
 }
 
+interface Vehiculo {
+  id: number
+  marca: string
+  modelo: string
+  año: number
+  color: string
+  precio_venta: number
+  stock: number
+}
+
+interface DetalleVenta {
+  vehiculo_id: string
+  cantidad: number
+  precio_unitario: number
+  subtotal: number
+}
+
 export default function NuevaVentaPage() {
   const router = useRouter()
   const [clientes, setClientes] = useState<Cliente[]>([])
+  const [vehiculos, setVehiculos] = useState<Vehiculo[]>([])
   const [clienteId, setClienteId] = useState<number | "">("")
-  const [detalles, setDetalles] = useState([
-    { producto: "", cantidad: 1, precio_unitario: 0 },
+  const [detalles, setDetalles] = useState<DetalleVenta[]>([
+    { vehiculo_id: "", cantidad: 1, precio_unitario: 0, subtotal: 0 },
   ])
   const [loading, setLoading] = useState(false)
 
+  // 🔹 Obtener clientes y vehículos disponibles
   useEffect(() => {
-    api
-      .get("/clientes")
-      .then((res) => setClientes(res.data.data))
-      .catch((err) => console.error("Error al obtener clientes:", err))
+    const fetchData = async () => {
+      try {
+        const [clientesRes, vehiculosRes] = await Promise.all([
+          api.get("/clientes"),
+          api.get("/vehiculos"),
+        ])
+        setClientes(clientesRes.data.data)
+        setVehiculos(vehiculosRes.data.data)
+      } catch (err) {
+        console.error("Error al obtener datos:", err)
+      }
+    }
+    fetchData()
   }, [])
 
   const handleAgregarFila = () => {
-    setDetalles([...detalles, { producto: "", cantidad: 1, precio_unitario: 0 }])
+    setDetalles([
+      ...detalles,
+      { vehiculo_id: "", cantidad: 1, precio_unitario: 0, subtotal: 0 },
+    ])
   }
 
- type DetalleField = "producto" | "cantidad" | "precio_unitario"
+  const handleDetalleChange = (
+    index: number,
+    field: keyof DetalleVenta,
+    value: any
+  ) => {
+    const updated = [...detalles]
+    const detalleActual = updated[index]
 
-const handleDetalleChange = (index: number, field: DetalleField, value: any) => {
-  const updated = [...detalles]
-  updated[index] = { ...updated[index], [field]: value }
-  setDetalles(updated)
-}
+    if (field === "vehiculo_id") {
+      const vehiculo = vehiculos.find((v) => v.id === Number(value))
+      if (vehiculo) {
+        updated[index] = {
+          ...detalleActual,
+          vehiculo_id: value,
+          precio_unitario: vehiculo.precio_venta,
+          subtotal: vehiculo.precio_venta * detalleActual.cantidad,
+        }
+      }
+    } else if (field === "cantidad") {
+      updated[index] = {
+        ...detalleActual,
+        cantidad: Number(value),
+        subtotal: detalleActual.precio_unitario * Number(value),
+      }
+    } else if (field === "precio_unitario") {
+      const nuevoPrecio = Number(value)
+      updated[index] = {
+        ...detalleActual,
+        precio_unitario: nuevoPrecio,
+        subtotal: nuevoPrecio * detalleActual.cantidad,
+      }
+    }
 
+    setDetalles(updated)
+  }
+
+  const calcularTotales = () => {
+    const subtotal = detalles.reduce((sum, d) => sum + d.subtotal, 0)
+    const iva = subtotal * 0.19
+    const total = subtotal + iva
+    return { subtotal, iva, total }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     try {
+      const { subtotal, iva, total } = calcularTotales()
+
       const payload = {
         cliente_id: clienteId,
-        detalles,
+        numero_factura: "FAC-" + Date.now(),
+        fecha_venta: new Date().toISOString().split("T")[0],
+        subtotal,
+        iva,
+        total,
+        estado_dian: "Pendiente",
+        detalles: detalles.map((d) => ({
+          vehiculo_id: Number(d.vehiculo_id),
+          cantidad: d.cantidad,
+          precio_unitario: d.precio_unitario,
+          subtotal: d.subtotal,
+        })),
       }
+
       await api.post("/ventas", payload)
-      alert("Venta registrada correctamente ✅")
+      alert("✅ Venta registrada correctamente")
       router.push("/ventas")
     } catch (error) {
       console.error("Error al registrar venta:", error)
-      alert("Hubo un error al guardar la venta")
+      alert("❌ Error al guardar la venta")
     } finally {
       setLoading(false)
     }
@@ -94,42 +173,69 @@ const handleDetalleChange = (index: number, field: DetalleField, value: any) => 
           </div>
 
           <div>
-            <h2 className="text-xl font-semibold mb-3">Detalles de la venta</h2>
+            <h2 className="text-xl font-semibold mb-3">
+              Detalles de la venta
+            </h2>
             {detalles.map((detalle, index) => (
               <div key={index} className="flex gap-3 mb-2">
-                <input
-                  type="text"
-                  placeholder="Producto"
-                  value={detalle.producto}
-                  onChange={(e) => handleDetalleChange(index, "producto", e.target.value)}
+                <select
                   className="flex-1 p-2 bg-gray-800 border border-gray-700 rounded"
+                  value={detalle.vehiculo_id}
+                  onChange={(e) =>
+                    handleDetalleChange(index, "vehiculo_id", e.target.value)
+                  }
                   required
-                />
+                >
+                  <option value="">Seleccione un vehículo</option>
+                  {vehiculos
+                    .filter((v) => v.stock > 0)
+                    .map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.marca} {v.modelo} {v.año} - {v.color} (${v.precio_venta})
+                      </option>
+                    ))}
+                </select>
+
                 <input
                   type="number"
                   placeholder="Cantidad"
+                  min={1}
                   value={detalle.cantidad}
-                  onChange={(e) => handleDetalleChange(index, "cantidad", Number(e.target.value))}
+                  onChange={(e) =>
+                    handleDetalleChange(index, "cantidad", e.target.value)
+                  }
                   className="w-24 p-2 bg-gray-800 border border-gray-700 rounded"
                   required
                 />
+
                 <input
                   type="number"
-                  placeholder="Precio"
+                  placeholder="Precio venta"
+                  min={0}
                   value={detalle.precio_unitario}
-                  onChange={(e) => handleDetalleChange(index, "precio_unitario", Number(e.target.value))}
-                  className="w-32 p-2 bg-gray-800 border border-gray-700 rounded"
+                  onChange={(e) =>
+                    handleDetalleChange(index, "precio_unitario", e.target.value)
+                  }
+                  className="w-36 p-2 bg-gray-800 border border-gray-700 rounded text-right"
                   required
+                />
+
+                <input
+                  type="text"
+                  value={`$${detalle.subtotal.toLocaleString()}`}
+                  readOnly
+                  className="w-36 p-2 bg-gray-700 border border-gray-600 rounded text-right"
                 />
               </div>
             ))}
+
             <Button
               type="button"
               variant="ghost"
               className="text-blue-500 hover:text-blue-400"
               onClick={handleAgregarFila}
             >
-              <Plus className="w-4 h-4 mr-2" /> Agregar producto
+              <Plus className="w-4 h-4 mr-2" /> Agregar vehículo
             </Button>
           </div>
 
