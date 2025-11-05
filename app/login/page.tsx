@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
@@ -22,14 +21,18 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError("")
     setLoading(true)
+    setError("")
 
     try {
+      // 🔐 Usa el contexto de autenticación
       await login({ email, password })
+
+      console.log("✅ Login exitoso. Token guardado:", localStorage.getItem("token"))
       router.push("/dashboard")
-    } catch (err: any) {
-      setError(err.response?.data?.message || "Error al iniciar sesión")
+    } catch (error: any) {
+      console.error("❌ Error de login:", error)
+      setError(error.message || "Error en el inicio de sesión")
     } finally {
       setLoading(false)
     }

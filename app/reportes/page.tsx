@@ -2,8 +2,6 @@
 
 import { useState, useEffect } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
-import { BalanceGeneralReport } from "@/components/reportes/balance-general"
-import { EstadoResultadosReport } from "@/components/reportes/estado-resultados"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -65,15 +63,15 @@ export default function ReportesPage() {
     fetchAsientos()
   }, [token])
 
-  // 🔹 Generar los reportes incluyendo contrapartida
+  // 🔹 Generar reportes con contrapartidas reales
   const handleGenerateReport = () => {
     setReportLoading(true)
-    const start = dateRange.inicio
-    const end = dateRange.fin
+
+    const { inicio, fin } = dateRange
 
     const filteredAsientos = asientos.filter((a) => {
       const fecha = new Date(a.fecha).toISOString().split("T")[0]
-      return fecha >= start && fecha <= end
+      return fecha >= inicio && fecha <= fin
     })
 
     const bg: BalanceGeneral = { activos: [], pasivos: [], capital: [], total_activos: 0, total_pasivos: 0, total_capital: 0 }
@@ -81,40 +79,60 @@ export default function ReportesPage() {
 
     filteredAsientos.forEach((asiento) => {
       asiento.partidas?.forEach((p: PartidaContable) => {
-        if (!p?.cuenta?.tipo) return
+        if (!p?.cuenta?.tipo || !p.cuenta?.nombre) return
+
         const tipo = p.cuenta.tipo.trim().toUpperCase()
-        const debe = parseFloat(String(p.debe ?? "0"))
-        const haber = parseFloat(String(p.haber ?? "0"))
-        const contrapartida = p.contrapartida ?? asiento.descripcion ?? "—"
+        const debe = Number(p.debe ?? 0)
+        const haber = Number(p.haber ?? 0)
         let monto = 0
 
+        // 🧩 Crear contrapartidas reales (sin duplicados ni vacíos)
+        const contrapartidasSet = new Set<string>()
+        asiento.partidas?.forEach((x) => {
+          if (x.cuenta?.nombre && x.cuenta.nombre !== p.cuenta?.nombre) {
+            contrapartidasSet.add(x.cuenta.nombre)
+          }
+        })
+        const contrapartida = Array.from(contrapartidasSet).join(" ↔ ") || "—"
+
+        // 📊 Clasificar por tipo
         switch (tipo) {
           case "ACTIVO":
             monto = debe - haber
-            bg.activos.push({ cuenta: p.cuenta.nombre, monto, contrapartida })
-            bg.total_activos += monto
+            if (monto !== 0) {
+              bg.activos.push({ cuenta: p.cuenta.nombre, monto, contrapartida })
+              bg.total_activos += monto
+            }
             break
           case "PASIVO":
             monto = haber - debe
-            bg.pasivos.push({ cuenta: p.cuenta.nombre, monto, contrapartida })
-            bg.total_pasivos += monto
+            if (monto !== 0) {
+              bg.pasivos.push({ cuenta: p.cuenta.nombre, monto, contrapartida })
+              bg.total_pasivos += monto
+            }
             break
           case "PATRIMONIO":
           case "CAPITAL":
             monto = haber - debe
-            bg.capital.push({ cuenta: p.cuenta.nombre, monto, contrapartida })
-            bg.total_capital += monto
+            if (monto !== 0) {
+              bg.capital.push({ cuenta: p.cuenta.nombre, monto, contrapartida })
+              bg.total_capital += monto
+            }
             break
           case "INGRESO":
             monto = haber - debe
-            er.ingresos.push({ cuenta: p.cuenta.nombre, monto, contrapartida })
-            er.total_ingresos += monto
+            if (monto !== 0) {
+              er.ingresos.push({ cuenta: p.cuenta.nombre, monto, contrapartida })
+              er.total_ingresos += monto
+            }
             break
           case "EGRESO":
           case "GASTO":
             monto = debe - haber
-            er.egresos.push({ cuenta: p.cuenta.nombre, monto, contrapartida })
-            er.total_egresos += monto
+            if (monto !== 0) {
+              er.egresos.push({ cuenta: p.cuenta.nombre, monto, contrapartida })
+              er.total_egresos += monto
+            }
             break
           default:
             console.warn("Tipo de cuenta desconocido:", tipo)
@@ -150,6 +168,50 @@ export default function ReportesPage() {
     }
   }
 
+  // 🔹 Render helper para tablas
+  const renderTable = (title: string, items: any[], total: number) => (
+    <div className="mb-8">
+      <h3 className="text-xl font-semibold text-white mb-3">{title}</h3>
+      <div className="overflow-x-auto rounded-lg border border-zinc-800">
+        <table className="min-w-full text-sm text-gray-300">
+          <thead>
+            <tr className="bg-zinc-800 text-gray-200">
+              <th className="text-left px-4 py-2">Cuenta</th>
+              <th className="text-left px-4 py-2">Contrapartida</th>
+              <th className="text-right px-4 py-2">Monto</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.length > 0 ? (
+              items.map((item, i) => (
+                <tr key={i} className="border-b border-zinc-800 hover:bg-zinc-800/40">
+                  <td className="px-4 py-2">{item.cuenta}</td>
+                  <td className="px-4 py-2 text-gray-400">{item.contrapartida || "—"}</td>
+                  <td className="px-4 py-2 text-right text-blue-300">
+                    {item.monto.toLocaleString("es-CO", { style: "currency", currency: "COP" })}
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={3} className="text-center py-3 text-gray-500 italic">
+                  No hay registros en este período
+                </td>
+              </tr>
+            )}
+            <tr className="font-semibold bg-zinc-800">
+              <td className="px-4 py-2">Total {title}</td>
+              <td></td>
+              <td className="px-4 py-2 text-right text-blue-400">
+                {total.toLocaleString("es-CO", { style: "currency", currency: "COP" })}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -165,7 +227,7 @@ export default function ReportesPage() {
       <div className="p-8 space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-white">Reportes Contables</h1>
-          <p className="text-gray-400 mt-2">Genera y exporta reportes financieros con contrapartidas</p>
+          <p className="text-gray-400 mt-2">Genera y exporta reportes financieros con contrapartidas reales</p>
         </div>
 
         {/* 🔹 Filtro de fechas */}
@@ -214,14 +276,14 @@ export default function ReportesPage() {
                 onClick={() => descargarLibroDiario("pdf")}
                 className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
               >
-                <Download className="w-4 h-4" /> Descargar PDF
+                <Download className="w-4 h-4" /> PDF
               </Button>
 
               <Button
                 onClick={() => descargarLibroDiario("excel")}
                 className="bg-yellow-600 hover:bg-yellow-700 text-white flex items-center gap-2"
               >
-                <Download className="w-4 h-4" /> Descargar Excel
+                <Download className="w-4 h-4" /> Excel
               </Button>
             </div>
           </CardContent>
@@ -241,11 +303,21 @@ export default function ReportesPage() {
           </TabsList>
 
           <TabsContent value="balance">
-            <BalanceGeneralReport data={balanceGeneral} />
+            {renderTable("Activos", balanceGeneral.activos, balanceGeneral.total_activos)}
+            {renderTable("Pasivos", balanceGeneral.pasivos, balanceGeneral.total_pasivos)}
+            {renderTable("Capital", balanceGeneral.capital, balanceGeneral.total_capital)}
           </TabsContent>
 
           <TabsContent value="resultados">
-            <EstadoResultadosReport data={estadoResultados} />
+            {renderTable("Ingresos", estadoResultados.ingresos, estadoResultados.total_ingresos)}
+            {renderTable("Egresos", estadoResultados.egresos, estadoResultados.total_egresos)}
+            <div className="mt-4 text-right font-semibold text-blue-400 text-lg">
+              Utilidad Neta:{" "}
+              {estadoResultados.utilidad_neta.toLocaleString("es-CO", {
+                style: "currency",
+                currency: "COP",
+              })}
+            </div>
           </TabsContent>
         </Tabs>
       </div>

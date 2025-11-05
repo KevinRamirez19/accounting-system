@@ -21,17 +21,15 @@ export interface RegisterData {
 
 export interface AuthResponse {
   token: string
-  user:{
+  token_type: string
+  user: {
     id: number
     nombre: string
     email: string
     rol?: string
-
   }
-  acces_token: string
-  token_type: string
-  users: any
 }
+
 
 export interface ApiError {
   message: string

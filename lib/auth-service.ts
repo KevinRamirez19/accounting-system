@@ -4,25 +4,32 @@ import type { LoginCredentials, RegisterData, AuthResponse } from "./types"
 export const authService = {
   // 🟢 LOGIN
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
-    const response = await api.post("/auth/login", credentials)
+  const response = await api.post("/auth/login", credentials)
 
-    // Laravel normalmente devuelve: { success, data: { access_token, user } }
-    const { data } = response.data
+  // Laravel puede devolver:
+  // 1️⃣ { access_token, token_type, user }
+  // 2️⃣ { data: { access_token, token_type, user } }
+  const data = response.data?.data || response.data
 
-    if (!data?.access_token) {
-      throw new Error("No se recibió un token válido del servidor.")
-    }
+  console.log("🟢 Respuesta del backend:", data) // 👈 verifica en consola
 
-    const token = data.access_token
-    const token_type = data.token_type ?? "Bearer"
-    const user = data.user
+  // Acepta tanto 'access_token' como 'token'
+  const token = data.access_token || data.token
+  const token_type = data.token_type ?? "Bearer"
+  const user = data.user
 
-    // Guardamos en localStorage
-    localStorage.setItem("token", token)
-    localStorage.setItem("user", JSON.stringify(user))
+  if (!token) {
+    throw new Error("No se recibió token del servidor")
+  }
 
-    return { token, token_type, user }
-  },
+  // Guardar sesión
+  localStorage.setItem("token", token)
+  localStorage.setItem("user", JSON.stringify(user))
+
+  // Retornar según tu tipo actual
+  return { token, token_type, user }
+},
+
 
   // 🟢 REGISTRO
   async register(data: RegisterData): Promise<{ message: string }> {

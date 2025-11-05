@@ -26,7 +26,7 @@ const navigation = [
   { name: "Ventas", href: "/ventas", icon: TrendingUp },
   { name: "Contabilidad", href: "/contabilidad", icon: BookOpen },
   { name: "Reportes", href: "/reportes", icon: FileText },
-  { name: "Usuarios", href: "/usuarios", icon: Settings },
+  
 ]
 
 export function Sidebar() {

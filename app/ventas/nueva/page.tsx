@@ -39,7 +39,6 @@ export default function NuevaVentaPage() {
   ])
   const [loading, setLoading] = useState(false)
 
-  // 🔹 Obtener clientes y vehículos disponibles
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -128,12 +127,24 @@ export default function NuevaVentaPage() {
         })),
       }
 
-      await api.post("/ventas", payload)
+      // 🔹 Guardar la venta
+      const response = await api.post("/ventas", payload)
+      const ventaId = response.data?.data?.id
+
+      // ✅ Abrir factura PDF con token JWT
+      if (ventaId) {
+        const token = localStorage.getItem("token")
+        if (!token) throw new Error("Usuario no autenticado")
+
+        const facturaUrl = `${process.env.NEXT_PUBLIC_API_URL}/ventas/${ventaId}/factura-pdf?token=${token}`
+        window.open(facturaUrl, "_blank")
+      }
+
       alert("✅ Venta registrada correctamente")
       router.push("/ventas")
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error al registrar venta:", error)
-      alert("❌ Error al guardar la venta")
+      alert(`❌ Error al guardar la venta: ${error.message || error}`)
     } finally {
       setLoading(false)
     }
