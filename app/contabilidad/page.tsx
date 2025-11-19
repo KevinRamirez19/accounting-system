@@ -40,6 +40,8 @@ export default function ContabilidadPage() {
         ])
         setCuentas(cuentasRes.data.data || [])
         setAsientos(asientosRes.data.data || [])
+
+        console.log("📊 Asientos recibidos:", asientosRes.data.data)
       } catch (err: any) {
         console.error("Error al cargar datos:", err)
         alert("Error al cargar datos, revisa la consola")
@@ -72,21 +74,23 @@ export default function ContabilidadPage() {
       const payload = {
         codigo: data.codigo,
         descripcion: data.descripcion,
-        fecha: data.fecha.split("T")[0], // Guardamos solo la fecha sin hora
+        fecha: data.fecha.split("T")[0],
         compra_id: data.compra_id || null,
         venta_id: data.venta_id || null,
         partidas: data.partidas.map((p: any) => ({
           cuenta_id: p.cuenta_id,
           debe: Number(p.debe) || 0,
           haber: Number(p.haber) || 0,
-          descripcion: p.descripcion || null,
+          descripcion: p.descripcion || "",
         })),
       }
 
-      await api.post("/asientos", payload)
+      console.log("🧾 Payload enviado:", payload)
 
+      await api.post("/asientos", payload)
       const res = await api.get("/asientos")
       setAsientos(res.data.data || [])
+
       setShowAsientoForm(false)
     } catch (err: any) {
       console.error("Error al crear asiento:", err)
@@ -109,34 +113,33 @@ export default function ContabilidadPage() {
     {
       key: "fecha",
       label: "Fecha",
-      render: (asiento: AsientoContable) => {
-        if (!asiento.fecha) return ""
-        return asiento.fecha.split("T")[0] // Solo YYYY-MM-DD
-      },
+      render: (asiento: AsientoContable) => asiento.fecha?.split("T")[0] ?? "",
     },
     { key: "descripcion", label: "Descripción" },
     {
       key: "total",
       label: "Total Debe",
       render: (asiento: AsientoContable) => {
-        const totalDebe = asiento.partidas?.reduce(
-          (sum: number, p: PartidaContable) => sum + (Number(p.debe) || 0),
-          0
-        ) || 0
+        const totalDebe =
+          asiento.partidas?.reduce((sum: number, p: PartidaContable) => sum + Number(p.debe || 0), 0) || 0
 
-        return `$${totalDebe.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        return `$${totalDebe.toLocaleString("es-CO", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}`
       },
     },
     {
       key: "totalHaber",
       label: "Total Haber",
       render: (asiento: AsientoContable) => {
-        const totalHaber = asiento.partidas?.reduce(
-          (sum: number, p: PartidaContable) => sum + (Number(p.haber) || 0),
-          0
-        ) || 0
+        const totalHaber =
+          asiento.partidas?.reduce((sum: number, p: PartidaContable) => sum + Number(p.haber || 0), 0) || 0
 
-        return `$${totalHaber.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        return `$${totalHaber.toLocaleString("es-CO", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}`
       },
     },
   ]

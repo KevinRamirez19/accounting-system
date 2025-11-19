@@ -79,9 +79,10 @@ export default function ReportesPage() {
 
     filteredAsientos.forEach((asiento) => {
       asiento.partidas?.forEach((p: PartidaContable) => {
-        if (!p?.cuenta?.tipo || !p.cuenta?.nombre) return
+        const cuenta = p.cuenta
+        if (!cuenta?.tipo || !cuenta.nombre) return
 
-        const tipo = p.cuenta.tipo.trim().toUpperCase()
+        const tipo = cuenta.tipo.trim().toUpperCase()
         const debe = Number(p.debe ?? 0)
         const haber = Number(p.haber ?? 0)
         let monto = 0
@@ -89,8 +90,9 @@ export default function ReportesPage() {
         // 🧩 Crear contrapartidas reales (sin duplicados ni vacíos)
         const contrapartidasSet = new Set<string>()
         asiento.partidas?.forEach((x) => {
-          if (x.cuenta?.nombre && x.cuenta.nombre !== p.cuenta?.nombre) {
-            contrapartidasSet.add(x.cuenta.nombre)
+          const otraCuenta = x.cuenta
+          if (otraCuenta?.nombre && otraCuenta.nombre !== cuenta.nombre) {
+            contrapartidasSet.add(otraCuenta.nombre)
           }
         })
         const contrapartida = Array.from(contrapartidasSet).join(" ↔ ") || "—"
@@ -100,14 +102,14 @@ export default function ReportesPage() {
           case "ACTIVO":
             monto = debe - haber
             if (monto !== 0) {
-              bg.activos.push({ cuenta: p.cuenta.nombre, monto, contrapartida })
+              bg.activos.push({ cuenta: cuenta.nombre, monto, contrapartida })
               bg.total_activos += monto
             }
             break
           case "PASIVO":
             monto = haber - debe
             if (monto !== 0) {
-              bg.pasivos.push({ cuenta: p.cuenta.nombre, monto, contrapartida })
+              bg.pasivos.push({ cuenta: cuenta.nombre, monto, contrapartida })
               bg.total_pasivos += monto
             }
             break
@@ -115,14 +117,14 @@ export default function ReportesPage() {
           case "CAPITAL":
             monto = haber - debe
             if (monto !== 0) {
-              bg.capital.push({ cuenta: p.cuenta.nombre, monto, contrapartida })
+              bg.capital.push({ cuenta: cuenta.nombre, monto, contrapartida })
               bg.total_capital += monto
             }
             break
           case "INGRESO":
             monto = haber - debe
             if (monto !== 0) {
-              er.ingresos.push({ cuenta: p.cuenta.nombre, monto, contrapartida })
+              er.ingresos.push({ cuenta: cuenta.nombre, monto, contrapartida })
               er.total_ingresos += monto
             }
             break
@@ -130,7 +132,7 @@ export default function ReportesPage() {
           case "GASTO":
             monto = debe - haber
             if (monto !== 0) {
-              er.egresos.push({ cuenta: p.cuenta.nombre, monto, contrapartida })
+              er.egresos.push({ cuenta: cuenta.nombre, monto, contrapartida })
               er.total_egresos += monto
             }
             break

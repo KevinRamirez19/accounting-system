@@ -15,7 +15,6 @@ interface AsientoFormProps {
 }
 
 export function AsientoForm({ cuentas, onSubmit, onCancel }: AsientoFormProps) {
-  const [codigo, setCodigo] = useState("")
   const [descripcion, setDescripcion] = useState("")
   const [fecha, setFecha] = useState("")
   const [partidas, setPartidas] = useState([
@@ -24,7 +23,7 @@ export function AsientoForm({ cuentas, onSubmit, onCancel }: AsientoFormProps) {
   const [totalDebe, setTotalDebe] = useState(0)
   const [totalHaber, setTotalHaber] = useState(0)
 
-  // Recalcular totales cada vez que cambian las partidas
+  // 🔄 Recalcular totales automáticamente
   useEffect(() => {
     const debe = partidas.reduce((sum, p) => sum + Number(p.debe || 0), 0)
     const haber = partidas.reduce((sum, p) => sum + Number(p.haber || 0), 0)
@@ -42,7 +41,6 @@ export function AsientoForm({ cuentas, onSubmit, onCancel }: AsientoFormProps) {
 
   const handleChange = (index: number, field: string, value: any) => {
     const newPartidas = [...partidas]
-    // Convertimos a número puro, ignorando símbolos
     if (field === "debe" || field === "haber") {
       value = Number(value)
       if (isNaN(value)) value = 0
@@ -54,8 +52,8 @@ export function AsientoForm({ cuentas, onSubmit, onCancel }: AsientoFormProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!codigo.trim() || !descripcion.trim() || !fecha) {
-      alert("Por favor completa todos los campos del asiento.")
+    if (!descripcion.trim() || !fecha) {
+      alert("Por favor completa la descripción y la fecha del asiento.")
       return
     }
 
@@ -69,8 +67,8 @@ export function AsientoForm({ cuentas, onSubmit, onCancel }: AsientoFormProps) {
       return
     }
 
-    onSubmit({
-      codigo,
+    // ✅ Estructura esperada por el backend
+    const payload = {
       descripcion,
       fecha,
       partidas: partidas.map((p) => ({
@@ -79,7 +77,9 @@ export function AsientoForm({ cuentas, onSubmit, onCancel }: AsientoFormProps) {
         haber: Number(p.haber),
         descripcion: p.descripcion || null,
       })),
-    })
+    }
+
+    onSubmit(payload)
   }
 
   const balanceMessage = () => {
@@ -88,7 +88,6 @@ export function AsientoForm({ cuentas, onSubmit, onCancel }: AsientoFormProps) {
     return "⚠️ Hay más en Haber"
   }
 
-  // Función para mostrar números como moneda
   const formatCurrency = (value: number) =>
     `$${value.toLocaleString("es-CO", { minimumFractionDigits: 0 })}`
 
@@ -97,23 +96,12 @@ export function AsientoForm({ cuentas, onSubmit, onCancel }: AsientoFormProps) {
       <Card className="bg-zinc-900 border border-zinc-800 text-white">
         <CardContent className="space-y-4 pt-6">
           <div>
-            <Label htmlFor="codigo">Código</Label>
-            <Input
-              id="codigo"
-              value={codigo}
-              onChange={(e) => setCodigo(e.target.value)}
-              placeholder="Ej: AS-001"
-              className="bg-zinc-800 border-zinc-700 text-white"
-            />
-          </div>
-
-          <div>
             <Label htmlFor="descripcion">Descripción</Label>
             <Input
               id="descripcion"
               value={descripcion}
               onChange={(e) => setDescripcion(e.target.value)}
-              placeholder="Ej: Compra de equipos"
+              placeholder="Ej: Venta de Hylux"
               className="bg-zinc-800 border-zinc-700 text-white"
             />
           </div>
@@ -133,6 +121,7 @@ export function AsientoForm({ cuentas, onSubmit, onCancel }: AsientoFormProps) {
 
       <div className="space-y-4">
         <h3 className="text-xl font-semibold text-white">Partidas Contables</h3>
+
         {partidas.map((partida, index) => (
           <Card key={index} className="bg-zinc-900 border border-zinc-800 text-white relative">
             <CardContent className="grid grid-cols-5 gap-3 pt-6">

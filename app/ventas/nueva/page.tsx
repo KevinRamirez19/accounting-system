@@ -34,26 +34,33 @@ export default function NuevaVentaPage() {
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [vehiculos, setVehiculos] = useState<Vehiculo[]>([])
   const [clienteId, setClienteId] = useState<number | "">("")
-  const [detalles, setDetalles] = useState<DetalleVenta[]>([
-    { vehiculo_id: "", cantidad: 1, precio_unitario: 0, subtotal: 0 },
-  ])
+  const [detalles, setDetalles] = useState<DetalleVenta[]>([])
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     const fetchData = async () => {
       try {
+        console.log("🔹 Obteniendo clientes y vehículos...")
         const [clientesRes, vehiculosRes] = await Promise.all([
           api.get("/clientes"),
           api.get("/vehiculos"),
         ])
+        console.log("✅ Clientes obtenidos:", clientesRes.data.data)
+        console.log("✅ Vehículos obtenidos:", vehiculosRes.data.data)
         setClientes(clientesRes.data.data)
         setVehiculos(vehiculosRes.data.data)
       } catch (err) {
-        console.error("Error al obtener datos:", err)
+        console.error("❌ Error al obtener datos:", err)
       }
     }
     fetchData()
   }, [])
+
+  useEffect(() => {
+    if (detalles.length === 0) {
+      setDetalles([{ vehiculo_id: "", cantidad: 1, precio_unitario: 0, subtotal: 0 }])
+    }
+  }, [detalles])
 
   const handleAgregarFila = () => {
     setDetalles([
@@ -70,6 +77,8 @@ export default function NuevaVentaPage() {
     const updated = [...detalles]
     const detalleActual = updated[index]
 
+    console.log(`🔹 Cambiando detalle ${index}: field=${field}, value=${value}`)
+
     if (field === "vehiculo_id") {
       const vehiculo = vehiculos.find((v) => v.id === Number(value))
       if (vehiculo) {
@@ -77,24 +86,28 @@ export default function NuevaVentaPage() {
           ...detalleActual,
           vehiculo_id: value,
           precio_unitario: vehiculo.precio_venta,
-          subtotal: vehiculo.precio_venta * detalleActual.cantidad,
+          subtotal: vehiculo.precio_venta * (detalleActual.cantidad || 1),
         }
+      } else {
+        updated[index].vehiculo_id = value
       }
     } else if (field === "cantidad") {
+      const cantidad = Number(value) || 1
       updated[index] = {
         ...detalleActual,
-        cantidad: Number(value),
-        subtotal: detalleActual.precio_unitario * Number(value),
+        cantidad,
+        subtotal: detalleActual.precio_unitario * cantidad,
       }
     } else if (field === "precio_unitario") {
-      const nuevoPrecio = Number(value)
+      const precio = Number(value) || 0
       updated[index] = {
         ...detalleActual,
-        precio_unitario: nuevoPrecio,
-        subtotal: nuevoPrecio * detalleActual.cantidad,
+        precio_unitario: precio,
+        subtotal: precio * detalleActual.cantidad,
       }
     }
 
+    console.log(`🔹 Detalle actualizado ${index}:`, updated[index])
     setDetalles(updated)
   }
 
@@ -102,6 +115,7 @@ export default function NuevaVentaPage() {
     const subtotal = detalles.reduce((sum, d) => sum + d.subtotal, 0)
     const iva = subtotal * 0.19
     const total = subtotal + iva
+    console.log("🔹 Totales calculados:", { subtotal, iva, total })
     return { subtotal, iva, total }
   }
 
@@ -109,7 +123,15 @@ export default function NuevaVentaPage() {
     e.preventDefault()
     setLoading(true)
     try {
+      console.log("🔹 Iniciando registro de venta...")
       const { subtotal, iva, total } = calcularTotales()
+
+      // Validación extra antes de enviar
+      if (!clienteId) throw new Error("Debe seleccionar un cliente")
+      detalles.forEach((d, i) => {
+        if (!d.vehiculo_id) throw new Error(`Detalle ${i}: debe seleccionar un vehículo`)
+        if (d.cantidad <= 0) throw new Error(`Detalle ${i}: cantidad inválida`)
+      })
 
       const payload = {
         cliente_id: clienteId,
@@ -127,23 +149,25 @@ export default function NuevaVentaPage() {
         })),
       }
 
-      // 🔹 Guardar la venta
-      const response = await api.post("/ventas", payload)
-      const ventaId = response.data?.data?.id
+      console.log("📤 Payload de venta a enviar:", payload)
 
-      // ✅ Abrir factura PDF con token JWT
+      const response = await api.post("/ventas", payload)
+      console.log("📥 Respuesta del backend:", response.data)
+
+      const ventaId = response.data?.data?.id
       if (ventaId) {
         const token = localStorage.getItem("token")
         if (!token) throw new Error("Usuario no autenticado")
 
         const facturaUrl = `${process.env.NEXT_PUBLIC_API_URL}/ventas/${ventaId}/factura-pdf?token=${token}`
+        console.log("🔹 Abriendo PDF factura:", facturaUrl)
         window.open(facturaUrl, "_blank")
       }
 
       alert("✅ Venta registrada correctamente")
       router.push("/ventas")
     } catch (error: any) {
-      console.error("Error al registrar venta:", error)
+      console.error("❌ Error al registrar venta:", error)
       alert(`❌ Error al guardar la venta: ${error.message || error}`)
     } finally {
       setLoading(false)
@@ -233,7 +257,7 @@ export default function NuevaVentaPage() {
 
                 <input
                   type="text"
-                  value={`$${detalle.subtotal.toLocaleString()}`}
+                  value={`$${detalle.subtotal.toLocaleString("es-CO")}`}
                   readOnly
                   className="w-36 p-2 bg-gray-700 border border-gray-600 rounded text-right"
                 />

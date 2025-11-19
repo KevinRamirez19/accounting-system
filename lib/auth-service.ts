@@ -32,22 +32,29 @@ export const authService = {
 
 
   // 🟢 REGISTRO
-  async register(data: RegisterData): Promise<{ message: string }> {
-    try {
-      // Asegura que password_confirmation esté incluido
-      const payload = {
-        ...data,
-        password_confirmation: data.password_confirmation ?? data.password,
-      }
-
-      const response = await api.post("/auth/register", payload)
-      return response.data
-    } catch (error: any) {
-      console.error("❌ Error al registrar usuario:", error.response?.data || error)
-      throw error
+async register(data: {
+  nombre: string
+  email: string
+  password: string
+  password_confirmation?: string
+}): Promise<{ message: string }> {
+  try {
+    // Preparar payload según tu tabla
+    const payload = {
+      nombre: data.nombre,
+      email: data.email,
+      password: data.password,
+      password_confirmation: data.password_confirmation ?? data.password,
+      activo: 0 // Por defecto los usuarios nuevos están inactivos (0)
     }
-  },
 
+    const response = await api.post("/auth/register", payload)
+    return response.data
+  } catch (error: any) {
+    console.error("❌ Error al registrar usuario:", error.response?.data || error)
+    throw error
+  }
+},
   // 🟢 LOGOUT
   logout() {
     localStorage.removeItem("token")
@@ -81,4 +88,5 @@ export const authService = {
     localStorage.setItem("token", token)
     localStorage.setItem("user", JSON.stringify(user))
   },
+  
 }

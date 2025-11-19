@@ -151,7 +151,7 @@ export interface PartidaContable {
   id?: number
   cuenta_id: number
   cuenta?: Cuenta
-  tipo: "activo" | "pasivo" | "capital" | "ingreso" | "egreso"
+  tipo: "ACTIVO" | "PASIVO" | "CAPITAL" | "INGRESO" | "EGRESO"
   monto: number
   debe?: number
   haber?: number

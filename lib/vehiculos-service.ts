@@ -1,7 +1,7 @@
 import axios from "axios";
 import { Vehiculo } from "@/lib/types";
 
-const API_URL = "http://127.0.0.1:8000/api/vehiculos"; // ajusta si es necesario
+const API_URL = "http://localhost:8000/api/vehiculos"; // ajusta si es necesario
 
 // 🧩 Configurar un cliente de axios con el token automáticamente
 const api = axios.create({
