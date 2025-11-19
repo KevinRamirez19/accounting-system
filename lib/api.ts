@@ -7,7 +7,7 @@ export const api = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
-  withCredentials: true, // ✅ AGREGAR ESTA LÍNEA
+  withCredentials: false, // ✅ AGREGAR ESTA LÍNEA
 })
 
 // Request interceptor to add token
