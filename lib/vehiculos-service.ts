@@ -18,7 +18,7 @@ api.interceptors.request.use((config) => {
 
 export const vehiculosService = {
   getAll: async (): Promise<Vehiculo[]> => {
-  const response = await api.get("/");
+  const response = await api.get("/vehiculos");
   // 👇 si tu backend devuelve { data: [...] }
   return response.data.data || response.data;
 },
