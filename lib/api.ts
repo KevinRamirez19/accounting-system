@@ -7,6 +7,7 @@ export const api = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+  withCredentials: true, // ✅ AGREGAR ESTA LÍNEA
 })
 
 // Request interceptor to add token
@@ -19,6 +20,19 @@ api.interceptors.request.use(
     return config
   },
   (error) => {
+    return Promise.reject(error)
+  },
+)
+
+// Response interceptor to handle token expiration
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem("token")
+      localStorage.removeItem("user")
+      window.location.href = "/login"
+    }
     return Promise.reject(error)
   },
 )
