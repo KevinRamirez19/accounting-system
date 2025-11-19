@@ -1,6 +1,6 @@
 import axios from "axios"
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://concesionario-app-783489219466.northamerica-northeast1.run.app/api"
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
