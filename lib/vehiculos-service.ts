@@ -1,7 +1,7 @@
 import axios from "axios";
 import { Vehiculo } from "@/lib/types";
 
-const API_URL = "https://concesionario-app-783489219466.northamerica-northeast1.run.app/api/vehiculos"; // ajusta si es necesario
+const API_URL = "/api/vehiculos"; // ajusta si es necesario
 
 // 🧩 Configurar un cliente de axios con el token automáticamente
 const api = axios.create({
