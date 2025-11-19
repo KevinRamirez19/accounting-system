@@ -23,7 +23,7 @@ export default function DashboardPage() {
         const token = localStorage.getItem("token")
         if (!token) throw new Error("No se encontró el token. Por favor inicia sesión.")
 
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || "https://concesionario-app-783489219466.northamerica-northeast1.run.app/api"
 
         const [statsRes, chartRes] = await Promise.all([
           fetch(`${baseUrl}/dashboard/stats`, {

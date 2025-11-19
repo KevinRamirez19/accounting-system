@@ -56,7 +56,7 @@ export function CompraForm({ proveedores, onSubmit, onCancel }: CompraFormProps)
   useEffect(() => {
     const token = localStorage.getItem("token")
     axios
-      .get("http://localhost:8000/api/vehiculos", {
+      .get("https://concesionario-app-783489219466.northamerica-northeast1.run.app/api/vehiculos", {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then((res) => {
