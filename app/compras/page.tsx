@@ -21,7 +21,7 @@ export default function ComprasPage() {
 
   // ✅ Axios configurado con token
   const api = axios.create({
-    baseURL: "https://concesionario-app-783489219466.northamerica-northeast1.run.app/api",
+    baseURL: "https://concesionario-app-783489219466.northamerica-northeast1.run.app/api/compras",
     headers: {
       Authorization: token ? `Bearer ${token}` : "",
     },
